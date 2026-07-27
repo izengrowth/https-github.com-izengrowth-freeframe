@@ -20,8 +20,10 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { GuestCommentInput } from '@/components/review/guest-comment-input'
 import { FolderShareViewer } from '@/components/share/folder-share-viewer'
+import { ShareVideoPlayer } from '@/components/share/share-video-player'
+import { ShareCommentPanel } from '@/components/share/share-comment-panel'
+import { ShareAnnotationView } from '@/components/share/share-drawing-canvas'
 import type { Asset, SharePermission, ProjectBranding, ShareLinkAppearance } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -60,6 +62,9 @@ interface GuestComment {
   guest_name?: string | null
   created_at: string
   timecode_start?: number | null
+  timecode_end?: number | null
+  annotation?: { drawing_data?: Record<string, unknown> } | null
+  replies?: GuestComment[]
 }
 
 type CommentsResponse = GuestComment[]
@@ -722,7 +727,18 @@ function ShareViewer({
   const [commentKey, setCommentKey] = React.useState(0)
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
   const [currentTime, setCurrentTime] = React.useState(0)
+  const [focusedCommentId, setFocusedCommentId] = React.useState<string | null>(null)
+  const [activeAnnotation, setActiveAnnotation] = React.useState<Record<string, unknown> | null>(null)
   const videoRef = React.useRef<HTMLVideoElement>(null)
+
+  // All comments (for video timeline markers)
+  const [allComments, setAllComments] = React.useState<GuestComment[]>([])
+  React.useEffect(() => {
+    fetch(`${API_URL}/share/${token}/comments`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: GuestComment[]) => setAllComments(data.filter(c => !c.parent_id)))
+      .catch(() => {})
+  }, [token, commentKey])
 
   function handleSeek(seconds: number) {
     if (videoRef.current) {
@@ -731,34 +747,20 @@ function ShareViewer({
     }
   }
 
-  // Track video playback position for timecode pinning
-  React.useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-    const handler = () => setCurrentTime(video.currentTime)
-    video.addEventListener('timeupdate', handler)
-    return () => video.removeEventListener('timeupdate', handler)
-  }, [streamUrl])
-
   // For video/audio assets, get a stream URL if not already provided
   React.useEffect(() => {
-    if (asset.stream_url) {
-      setStreamUrl(asset.stream_url)
-      return
-    }
+    if (asset.stream_url) { setStreamUrl(asset.stream_url); return }
     if (asset.asset_type !== 'video' && asset.asset_type !== 'audio') return
     setStreamLoading(true)
     fetch(`${API_URL}/share/${token}/stream/${asset.id}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.stream_url) setStreamUrl(data.stream_url)
-        else if (data?.url) setStreamUrl(data.url)
-      })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.stream_url) setStreamUrl(data.stream_url); else if (data?.url) setStreamUrl(data.url) })
       .catch(() => null)
       .finally(() => setStreamLoading(false))
   }, [token, asset.asset_type, asset.stream_url, asset.id])
 
   const displayName = shareName || branding?.custom_title || 'FreeFrame'
+  const isVideo = asset.asset_type === 'video'
 
   return (
     <div className="absolute inset-0 flex flex-col bg-zinc-950 text-white overflow-hidden">
@@ -771,33 +773,81 @@ function ShareViewer({
         token={token}
         assetId={asset.id}
         sidebarOpen={sidebarOpen}
-        onToggleSidebar={() => setSidebarOpen((p) => !p)}
+        onToggleSidebar={() => setSidebarOpen(p => !p)}
         onBack={onBack}
         branding={branding}
       />
 
       {/* Main content: viewer + sidebar */}
       <div className="flex flex-1 overflow-hidden min-h-0">
-        {/* Left: full-screen media viewer */}
-        <ShareMediaViewer
-          asset={asset}
-          token={token}
-          streamUrl={streamUrl}
-          streamLoading={streamLoading}
-          videoRef={videoRef}
-        />
+        {/* Left: media viewer */}
+        <div className="relative flex-1 bg-black overflow-hidden">
+          {isVideo && streamUrl ? (
+            <ShareVideoPlayer
+              src={streamUrl}
+              comments={allComments as any}
+              videoRef={videoRef}
+              focusedCommentId={focusedCommentId}
+              onTimeUpdate={setCurrentTime}
+              onSeek={handleSeek}
+              onCommentMarkerClick={c => {
+                setFocusedCommentId(c.id)
+                if (c.timecode_start != null) handleSeek(c.timecode_start)
+                setActiveAnnotation((c as any).annotation?.drawing_data ?? null)
+              }}
+            />
+          ) : isVideo && streamLoading ? (
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
+            </div>
+          ) : isVideo ? (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-sm text-zinc-500">Video not available yet</p>
+            </div>
+          ) : (
+            <ShareMediaViewer
+              asset={asset}
+              token={token}
+              streamUrl={streamUrl}
+              streamLoading={streamLoading}
+              videoRef={videoRef}
+            />
+          )}
 
-        {/* Right: comments panel */}
+          {/* Read-only annotation overlay */}
+          {activeAnnotation && (
+            <ShareAnnotationView
+              drawingData={activeAnnotation}
+              className="pointer-events-none"
+            />
+          )}
+
+          {/* Clear annotation overlay on click */}
+          {activeAnnotation && (
+            <button
+              className="absolute top-3 right-3 z-30 flex items-center gap-1 rounded-md bg-black/60 text-white/70 hover:text-white text-xs px-2.5 py-1.5 transition-colors border border-white/10"
+              onClick={() => setActiveAnnotation(null)}
+            >
+              ✕ Clear annotation
+            </button>
+          )}
+        </div>
+
+        {/* Right: Frame.io-style comment panel */}
         {sidebarOpen && (
-          <ShareRightPanel
-            token={token}
-            asset={asset}
-            permission={permission}
-            commentRefreshKey={commentKey}
-            onCommentPosted={() => setCommentKey((k) => k + 1)}
-            onSeek={handleSeek}
-            currentTime={currentTime}
-          />
+          <div className="w-80 shrink-0 border-l border-white/[0.06] flex flex-col overflow-hidden bg-[#111113]">
+            <ShareCommentPanel
+              token={token}
+              permission={permission}
+              currentTime={isVideo ? currentTime : undefined}
+              focusedCommentId={focusedCommentId}
+              onSeek={handleSeek}
+              onFocusComment={setFocusedCommentId}
+              onAnnotationData={data => setActiveAnnotation(data)}
+              onCommentPosted={() => setCommentKey(k => k + 1)}
+              refreshKey={commentKey}
+            />
+          </div>
         )}
       </div>
 
