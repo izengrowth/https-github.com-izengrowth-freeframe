@@ -1,0 +1,21 @@
+name: Keep Render Awake
+
+on:
+  schedule:
+    # Ping every 9 minutes (GitHub Actions guarantees < 10 min intervals)
+    - cron: '*/9 * * * *'
+  workflow_dispatch: # Allow manual trigger too
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping API (keep backend alive)
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://freeframe-api.onrender.com/health)
+          echo "API responded with: $STATUS"
+
+      - name: Ping Frontend (keep frontend alive)
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://review.izengrowth.space)
+          echo "Frontend responded with: $STATUS"
