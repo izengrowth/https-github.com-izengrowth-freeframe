@@ -34,6 +34,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://localhost:3001",
         "https://freeframe-web.onrender.com",
+        "https://review.izengrowth.space",
     ],
     allow_credentials=True,
     allow_methods=["*"],
