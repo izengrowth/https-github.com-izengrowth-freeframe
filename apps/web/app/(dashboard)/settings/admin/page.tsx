@@ -237,7 +237,7 @@ function KeepAliveSection() {
           <Button
             onClick={toggle}
             disabled={toggling || isLoading}
-            variant={enabled ? "ghost" : "default"}
+            variant={enabled ? "ghost" : "primary"}
             className={cn(
               "shrink-0 gap-2 min-w-[120px]",
               enabled && "border border-border text-text-secondary hover:text-status-error hover:border-status-error",
@@ -262,7 +262,7 @@ function KeepAliveSection() {
   );
 }
 
-
+export default function AdminPage() {
   const { user, isSuperAdmin } = useAuthStore();
   const router = useRouter();
 
@@ -342,6 +342,8 @@ function KeepAliveSection() {
           </h1>
           <p className="text-sm text-text-secondary">Manage platform users</p>
         </div>
+      </div>
+
       {/* Keep Alive */}
       <KeepAliveSection />
 
