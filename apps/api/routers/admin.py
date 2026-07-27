@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 import uuid
 import json
 import os
@@ -78,7 +78,7 @@ def public_keep_alive_status():
 
 # ── User management endpoints ──────────────────────────────────────────────────
 
-@router.get("/users", response_model=list[UserResponse])
+@router.get("/users", response_model=List[UserResponse])
 def list_all_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
