@@ -189,9 +189,10 @@ function ErrorState({ expired }: ErrorStateProps) {
 interface GuestCommentListProps {
   token: string
   refreshKey: number
+  onSeek?: (seconds: number) => void
 }
 
-function GuestCommentList({ token, refreshKey }: GuestCommentListProps) {
+function GuestCommentList({ token, refreshKey, onSeek }: GuestCommentListProps) {
   const [comments, setComments] = React.useState<GuestComment[]>([])
   const [loading, setLoading] = React.useState(true)
 
@@ -239,10 +240,14 @@ function GuestCommentList({ token, refreshKey }: GuestCommentListProps) {
             </div>
             <span className="text-xs font-medium text-zinc-200">{comment.guest_name || 'Anonymous'}</span>
             {comment.timecode_start != null && (
-              <span className="text-2xs text-zinc-500 font-mono bg-white/5 px-1.5 py-0.5 rounded">
+              <button
+                onClick={() => onSeek?.(comment.timecode_start!)}
+                className="text-2xs text-purple-400 font-mono bg-purple-500/10 hover:bg-purple-500/25 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                title="Jump to this timestamp"
+              >
                 {Math.floor(comment.timecode_start / 60)}:
                 {String(Math.floor(comment.timecode_start % 60)).padStart(2, '0')}
-              </span>
+              </button>
             )}
             <span className="ml-auto text-2xs text-zinc-600">
               {new Date(comment.created_at).toLocaleDateString()}
@@ -463,9 +468,10 @@ interface ShareMediaViewerProps {
   token: string
   streamUrl: string | null
   streamLoading: boolean
+  videoRef?: React.RefObject<HTMLVideoElement>
 }
 
-function ShareMediaViewer({ asset, token, streamUrl, streamLoading }: ShareMediaViewerProps) {
+function ShareMediaViewer({ asset, token, streamUrl, streamLoading, videoRef }: ShareMediaViewerProps) {
   return (
     <div className="flex-1 flex items-center justify-center bg-black min-h-0 overflow-hidden">
       {asset.asset_type === 'video' && (
@@ -474,6 +480,7 @@ function ShareMediaViewer({ asset, token, streamUrl, streamLoading }: ShareMedia
             <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
           ) : streamUrl ? (
             <video
+              ref={videoRef}
               src={streamUrl}
               controls
               className="max-h-full max-w-full"
@@ -550,6 +557,7 @@ interface ShareRightPanelProps {
   permission: SharePermission
   commentRefreshKey: number
   onCommentPosted: () => void
+  onSeek?: (seconds: number) => void
 }
 
 function ShareRightPanel({
@@ -558,6 +566,7 @@ function ShareRightPanel({
   permission,
   commentRefreshKey,
   onCommentPosted,
+  onSeek,
 }: ShareRightPanelProps) {
   const [activeTab, setActiveTab] = React.useState<'comments' | 'fields'>('comments')
 
@@ -603,7 +612,7 @@ function ShareRightPanel({
             </div>
 
             {/* Comment list */}
-            <GuestCommentList token={token} refreshKey={commentRefreshKey} />
+            <GuestCommentList token={token} refreshKey={commentRefreshKey} onSeek={onSeek} />
 
             {/* Approval actions */}
             {permission === 'approve' && (
@@ -705,6 +714,14 @@ function ShareViewer({
   const [streamLoading, setStreamLoading] = React.useState(false)
   const [commentKey, setCommentKey] = React.useState(0)
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
+  const videoRef = React.useRef<HTMLVideoElement>(null)
+
+  function handleSeek(seconds: number) {
+    if (videoRef.current) {
+      videoRef.current.currentTime = seconds
+      videoRef.current.play().catch(() => {})
+    }
+  }
 
   // For video/audio assets, get a stream URL if not already provided
   React.useEffect(() => {
@@ -750,6 +767,7 @@ function ShareViewer({
           token={token}
           streamUrl={streamUrl}
           streamLoading={streamLoading}
+          videoRef={videoRef}
         />
 
         {/* Right: comments panel */}
@@ -760,6 +778,7 @@ function ShareViewer({
             permission={permission}
             commentRefreshKey={commentKey}
             onCommentPosted={() => setCommentKey((k) => k + 1)}
+            onSeek={handleSeek}
           />
         )}
       </div>
