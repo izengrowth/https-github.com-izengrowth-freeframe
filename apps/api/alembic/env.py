@@ -25,7 +25,7 @@ import models  # noqa
 target_metadata = Base.metadata
 
 from config import settings
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
