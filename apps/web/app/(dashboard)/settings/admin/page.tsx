@@ -342,7 +342,8 @@ function KeepAliveSection() {
           </h1>
           <p className="text-sm text-text-secondary">Manage platform users</p>
         </div>
-      </div>
+      {/* Keep Alive */}
+      <KeepAliveSection />
 
       {/* User management */}
       <section className="space-y-4">
@@ -491,9 +492,6 @@ function KeepAliveSection() {
           </div>
         )}
       </section>
-
-      {/* Keep Alive */}
-      <KeepAliveSection />
     </div>
   );
 }
