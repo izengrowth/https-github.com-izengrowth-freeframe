@@ -55,8 +55,9 @@ interface ShareValidateResponse {
 interface GuestComment {
   id: string
   body: string
-  guest_name: string
-  guest_email: string
+  guest_author?: { id: string; name: string; email: string } | null
+  author?: { id: string; name: string } | null
+  guest_name?: string | null
   created_at: string
   timecode_start?: number | null
 }
@@ -229,33 +230,36 @@ function GuestCommentList({ token, refreshKey, onSeek }: GuestCommentListProps) 
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5">
-      {comments.map((comment) => (
-        <div
-          key={comment.id}
-          className="rounded-lg bg-white/[0.03] border border-white/5 px-3 py-2.5"
-        >
-          <div className="flex items-center gap-2 mb-1.5">
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-500/20 text-2xs font-medium text-purple-400">
-              {(comment.guest_name || '?').charAt(0).toUpperCase()}
+      {comments.map((comment) => {
+        const displayName = comment.guest_author?.name || comment.author?.name || comment.guest_name || 'Anonymous'
+        return (
+          <div
+            key={comment.id}
+            className="rounded-lg bg-white/[0.03] border border-white/5 px-3 py-2.5"
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-500/20 text-2xs font-medium text-purple-400">
+                {(displayName).charAt(0).toUpperCase()}
+              </div>
+              <span className="text-xs font-medium text-zinc-200">{displayName}</span>
+              {comment.timecode_start != null && (
+                <button
+                  onClick={() => onSeek?.(comment.timecode_start!)}
+                  className="text-2xs text-purple-400 font-mono bg-purple-500/10 hover:bg-purple-500/25 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                  title="Jump to this timestamp"
+                >
+                  {Math.floor(comment.timecode_start / 60)}:
+                  {String(Math.floor(comment.timecode_start % 60)).padStart(2, '0')}
+                </button>
+              )}
+              <span className="ml-auto text-2xs text-zinc-600">
+                {new Date(comment.created_at).toLocaleDateString()}
+              </span>
             </div>
-            <span className="text-xs font-medium text-zinc-200">{comment.guest_name || 'Anonymous'}</span>
-            {comment.timecode_start != null && (
-              <button
-                onClick={() => onSeek?.(comment.timecode_start!)}
-                className="text-2xs text-purple-400 font-mono bg-purple-500/10 hover:bg-purple-500/25 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-                title="Jump to this timestamp"
-              >
-                {Math.floor(comment.timecode_start / 60)}:
-                {String(Math.floor(comment.timecode_start % 60)).padStart(2, '0')}
-              </button>
-            )}
-            <span className="ml-auto text-2xs text-zinc-600">
-              {new Date(comment.created_at).toLocaleDateString()}
-            </span>
+            <p className="text-sm text-zinc-300 leading-relaxed">{comment.body}</p>
           </div>
-          <p className="text-sm text-zinc-300 leading-relaxed">{comment.body}</p>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -558,6 +562,7 @@ interface ShareRightPanelProps {
   commentRefreshKey: number
   onCommentPosted: () => void
   onSeek?: (seconds: number) => void
+  currentTime?: number
 }
 
 function ShareRightPanel({
@@ -567,6 +572,7 @@ function ShareRightPanel({
   commentRefreshKey,
   onCommentPosted,
   onSeek,
+  currentTime,
 }: ShareRightPanelProps) {
   const [activeTab, setActiveTab] = React.useState<'comments' | 'fields'>('comments')
 
@@ -627,6 +633,7 @@ function ShareRightPanel({
                 token={token}
                 onCommentPosted={onCommentPosted}
                 className="border-t border-white/[0.06] bg-[#141416]"
+                currentTime={currentTime}
               />
             ) : (
               <div className="px-4 py-3 border-t border-white/[0.06] shrink-0">
@@ -714,6 +721,7 @@ function ShareViewer({
   const [streamLoading, setStreamLoading] = React.useState(false)
   const [commentKey, setCommentKey] = React.useState(0)
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
+  const [currentTime, setCurrentTime] = React.useState(0)
   const videoRef = React.useRef<HTMLVideoElement>(null)
 
   function handleSeek(seconds: number) {
@@ -722,6 +730,15 @@ function ShareViewer({
       videoRef.current.play().catch(() => {})
     }
   }
+
+  // Track video playback position for timecode pinning
+  React.useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    const handler = () => setCurrentTime(video.currentTime)
+    video.addEventListener('timeupdate', handler)
+    return () => video.removeEventListener('timeupdate', handler)
+  }, [streamUrl])
 
   // For video/audio assets, get a stream URL if not already provided
   React.useEffect(() => {
@@ -779,6 +796,7 @@ function ShareViewer({
             commentRefreshKey={commentKey}
             onCommentPosted={() => setCommentKey((k) => k + 1)}
             onSeek={handleSeek}
+            currentTime={currentTime}
           />
         )}
       </div>

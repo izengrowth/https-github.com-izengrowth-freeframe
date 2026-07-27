@@ -109,9 +109,11 @@ interface GuestCommentInputProps {
   /** Called after a comment is successfully submitted */
   onCommentPosted?: () => void
   className?: string
+  /** Current video playback time in seconds (used for timecode pinning) */
+  currentTime?: number
 }
 
-export function GuestCommentInput({ token, onCommentPosted, className }: GuestCommentInputProps) {
+export function GuestCommentInput({ token, onCommentPosted, className, currentTime }: GuestCommentInputProps) {
   const [identity, setIdentity] = React.useState<GuestIdentity | null>(null)
   const [body, setBody] = React.useState('')
   const [submitting, setSubmitting] = React.useState(false)
@@ -147,6 +149,7 @@ export function GuestCommentInput({ token, onCommentPosted, className }: GuestCo
           body: trimmed,
           guest_email: identity.email,
           guest_name: identity.name,
+          timecode_start: currentTime != null && currentTime > 0 ? Math.floor(currentTime) : null,
         }),
       })
 
@@ -179,7 +182,7 @@ export function GuestCommentInput({ token, onCommentPosted, className }: GuestCo
 
   return (
     <div className={cn('border-t border-border bg-bg-primary px-4 py-3', className)}>
-      {/* Identity badge */}
+      {/* Identity badge + current timecode */}
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs text-text-secondary">
           <div className="flex h-5 w-5 items-center justify-center rounded-full bg-accent-muted text-accent text-2xs font-medium">
@@ -188,6 +191,11 @@ export function GuestCommentInput({ token, onCommentPosted, className }: GuestCo
           <span>
             Commenting as <span className="font-medium text-text-primary">{identity.name}</span>
           </span>
+          {currentTime != null && currentTime > 0 && (
+            <span className="ml-1 text-2xs text-purple-400 font-mono bg-purple-500/10 px-1.5 py-0.5 rounded">
+              @ {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')}
+            </span>
+          )}
         </div>
         <button
           onClick={() => {
