@@ -3,7 +3,7 @@
 import * as React from "react";
 import useSWR, { mutate } from "swr";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Users, Plus, X, Shield, Link2, Check } from "lucide-react";
+import { Users, Plus, X, Shield, Link2, Check, Activity, RefreshCw, Zap, ZapOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -163,7 +163,106 @@ function userStatusBadge(status: UserStatus) {
   );
 }
 
-export default function AdminPage() {
+// ─── Keep Alive Section ───────────────────────────────────────────────────────
+
+function KeepAliveSection() {
+  const { data, isLoading, mutate: refresh } = useSWR(
+    "/admin/keep-alive",
+    () => api.get<{ enabled: boolean; last_ping?: string }>("/admin/keep-alive"),
+    { refreshInterval: 30000 },
+  );
+  const [toggling, setToggling] = React.useState(false);
+
+  const enabled = data?.enabled ?? true;
+
+  async function toggle() {
+    setToggling(true);
+    try {
+      await api.post("/admin/keep-alive", { enabled: !enabled });
+      refresh();
+    } catch {}
+    finally { setToggling(false); }
+  }
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-text-primary">Service Keep-Alive</h2>
+        <p className="text-sm text-text-secondary mt-0.5">
+          Automatically pings the API and frontend every 9 minutes so Render free-tier services never sleep.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-border bg-bg-secondary p-5">
+        <div className="flex items-center justify-between gap-4">
+          {/* Status info */}
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              "h-10 w-10 rounded-full flex items-center justify-center shrink-0",
+              enabled ? "bg-emerald-500/10" : "bg-zinc-500/10",
+            )}>
+              {enabled
+                ? <Zap className="h-5 w-5 text-emerald-400" />
+                : <ZapOff className="h-5 w-5 text-zinc-500" />}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-text-primary">
+                  {isLoading ? "Loading…" : enabled ? "Keep-alive is ON" : "Keep-alive is OFF"}
+                </span>
+                {!isLoading && (
+                  <span className={cn(
+                    "inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full",
+                    enabled
+                      ? "bg-emerald-500/10 text-emerald-400"
+                      : "bg-zinc-500/10 text-zinc-500",
+                  )}>
+                    <span className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      enabled ? "bg-emerald-400 animate-pulse" : "bg-zinc-500",
+                    )} />
+                    {enabled ? "Active" : "Inactive"}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-text-secondary mt-0.5">
+                {enabled
+                  ? "GitHub Actions cron pings every 9 min — services stay awake 24/7"
+                  : "Services may sleep after 15 min of inactivity on Render free tier"}
+              </p>
+            </div>
+          </div>
+
+          {/* Toggle button */}
+          <Button
+            onClick={toggle}
+            disabled={toggling || isLoading}
+            variant={enabled ? "ghost" : "default"}
+            className={cn(
+              "shrink-0 gap-2 min-w-[120px]",
+              enabled && "border border-border text-text-secondary hover:text-status-error hover:border-status-error",
+            )}
+          >
+            {toggling
+              ? <RefreshCw className="h-4 w-4 animate-spin" />
+              : enabled
+                ? <ZapOff className="h-4 w-4" />
+                : <Zap className="h-4 w-4" />}
+            {toggling ? "Saving…" : enabled ? "Turn Off" : "Turn On"}
+          </Button>
+        </div>
+
+        {/* Info strip */}
+        <div className="mt-4 pt-4 border-t border-border flex items-center gap-2 text-xs text-text-tertiary">
+          <Activity className="h-3.5 w-3.5 shrink-0" />
+          <span>Powered by GitHub Actions • Free • Runs from your repo automatically</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+
   const { user, isSuperAdmin } = useAuthStore();
   const router = useRouter();
 
@@ -392,6 +491,9 @@ export default function AdminPage() {
           </div>
         )}
       </section>
+
+      {/* Keep Alive */}
+      <KeepAliveSection />
     </div>
   );
 }
