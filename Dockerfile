@@ -2,7 +2,7 @@ FROM node:20-alpine AS builder
 RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /app
 COPY . .
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm --filter web build
