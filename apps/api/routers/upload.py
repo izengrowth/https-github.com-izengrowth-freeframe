@@ -14,6 +14,7 @@ from ..services.s3_service import (
 )
 from ..services.permissions import get_project_member, require_project_role
 from ..models.project import ProjectRole
+from ..config import settings
 from ..schemas.upload import (
     InitiateUploadRequest, InitiateUploadResponse,
     PresignPartRequest, PresignPartResponse,
@@ -145,13 +146,18 @@ def complete_upload(
     # Then complete S3 multipart
     complete_multipart_upload(body.s3_key, body.upload_id, [p.model_dump() for p in body.parts])
 
-    version.processing_status = ProcessingStatus.processing
-    db.commit()
+    if settings.transcoder_engine.lower() == "none":
+        version.processing_status = ProcessingStatus.ready
+        db.commit()
+        return CompleteUploadResponse(status="ready", asset_id=body.asset_id, version_id=body.version_id)
+    else:
+        version.processing_status = ProcessingStatus.processing
+        db.commit()
 
-    # Trigger transcoding in background (task dispatched in Step 7)
-    background_tasks.add_task(_trigger_processing, body.asset_id, body.version_id)
+        # Trigger transcoding in background (task dispatched in Step 7)
+        background_tasks.add_task(_trigger_processing, body.asset_id, body.version_id)
 
-    return CompleteUploadResponse(status="processing", asset_id=body.asset_id, version_id=body.version_id)
+        return CompleteUploadResponse(status="processing", asset_id=body.asset_id, version_id=body.version_id)
 
 
 def _trigger_processing(asset_id: uuid.UUID, version_id: uuid.UUID):

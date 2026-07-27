@@ -1,0 +1,23 @@
+# ==============================================================================
+# FreeFrame — Cloudflare Tunnel Docker Compose Override
+# ==============================================================================
+#
+# Usage:
+#   docker compose \
+#     -f docker-compose.prod.yml \
+#     -f docker-compose.tunnel.yml \
+#     --env-file .env.prod up -d --build
+#
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - traefik
+    restart: unless-stopped
