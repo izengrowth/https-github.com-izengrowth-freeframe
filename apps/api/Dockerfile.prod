@@ -29,9 +29,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["gunicorn", "apps.api.main:app", \
-     "-w", "4", \
-     "-k", "uvicorn.workers.UvicornWorker", \
-     "--bind", "0.0.0.0:8000", \
-     "--timeout", "120", \
-     "--graceful-timeout", "30"]
+CMD ["sh", "-c", "alembic -c apps/api/alembic.ini upgrade head && gunicorn apps.api.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 120 --graceful-timeout 30"]
