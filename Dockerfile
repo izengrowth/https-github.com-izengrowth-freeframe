@@ -1,11 +1,10 @@
 FROM node:20-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /app
 COPY . .
-RUN pnpm install --no-frozen-lockfile
+RUN npm install --legacy-peer-deps
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-RUN pnpm --filter web build
+RUN npm run build --workspace=web
 
 FROM node:20-alpine AS runner
 WORKDIR /app
