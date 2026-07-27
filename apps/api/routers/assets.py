@@ -43,6 +43,12 @@ def _build_asset_response(asset: Asset, db: Session) -> AssetResponse:
                 if f.s3_key_thumbnail:
                     thumbnail_url = generate_presigned_get_url(f.s3_key_thumbnail)
                     break
+                elif asset.asset_type == AssetType.image and f.s3_key_original:
+                    thumbnail_url = generate_presigned_get_url(f.s3_key_original)
+                    break
+                elif asset.asset_type == AssetType.video and (f.s3_key_original or f.s3_key_transcoded):
+                    thumbnail_url = generate_presigned_get_url(f.s3_key_original or f.s3_key_transcoded)
+                    break
 
     resp = AssetResponse.model_validate(asset)
     resp.latest_version = version_response
@@ -95,6 +101,12 @@ def _build_asset_responses_bulk(assets: list[Asset], db: Session) -> list[AssetR
                 for f in files:
                     if f.s3_key_thumbnail:
                         thumbnail_url = generate_presigned_get_url(f.s3_key_thumbnail)
+                        break
+                    elif asset.asset_type == AssetType.image and f.s3_key_original:
+                        thumbnail_url = generate_presigned_get_url(f.s3_key_original)
+                        break
+                    elif asset.asset_type == AssetType.video and (f.s3_key_original or f.s3_key_transcoded):
+                        thumbnail_url = generate_presigned_get_url(f.s3_key_original or f.s3_key_transcoded)
                         break
 
         asset_resp = AssetResponse.model_validate(asset)

@@ -518,8 +518,12 @@ export function AssetGrid({
                 {/* Square thumbnail with checkbox overlay */}
                 <div className="relative h-10 w-10 shrink-0 rounded-md bg-bg-tertiary overflow-hidden flex items-center justify-center">
                   {thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={thumb} alt={asset.name} className="h-full w-full object-cover" />
+                    asset.asset_type === 'video' && !thumb.includes('_thumb') && (thumb.includes('.mp4') || thumb.includes('.mov') || thumb.includes('.webm') || thumb.includes('r2.cloudflarestorage.com') || thumb.includes('onrender.com') || thumb.includes('/stream')) ? (
+                      <video src={thumb} preload="metadata" muted playsInline className="h-full w-full object-cover pointer-events-none" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={thumb} alt={asset.name} className="h-full w-full object-cover" />
+                    )
                   ) : (
                     <TypeIcon className="h-6 w-6 text-text-tertiary/60" />
                   )}

@@ -106,16 +106,29 @@ export function AssetCard({
         aspectMap[aspectRatio],
       )}>
         {thumbnailUrl && !imgError ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={thumbnailUrl}
-            alt={asset.name}
-            onError={() => setImgError(true)}
-            className={cn(
-              'h-full w-full transition-transform duration-200 group-hover:scale-[1.02]',
-              thumbnailScale === 'fill' ? 'object-cover' : 'object-contain',
-            )}
-          />
+          asset.asset_type === 'video' && !thumbnailUrl.includes('_thumb') && (thumbnailUrl.includes('.mp4') || thumbnailUrl.includes('.mov') || thumbnailUrl.includes('.webm') || thumbnailUrl.includes('r2.cloudflarestorage.com') || thumbnailUrl.includes('onrender.com') || thumbnailUrl.includes('/stream')) ? (
+            <video
+              src={thumbnailUrl}
+              preload="metadata"
+              muted
+              playsInline
+              className={cn(
+                'h-full w-full pointer-events-none transition-transform duration-200 group-hover:scale-[1.02]',
+                thumbnailScale === 'fill' ? 'object-cover' : 'object-contain',
+              )}
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={thumbnailUrl}
+              alt={asset.name}
+              onError={() => setImgError(true)}
+              className={cn(
+                'h-full w-full transition-transform duration-200 group-hover:scale-[1.02]',
+                thumbnailScale === 'fill' ? 'object-cover' : 'object-contain',
+              )}
+            />
+          )
         ) : (
           <div className="flex items-center justify-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-bg-hover text-text-secondary">
