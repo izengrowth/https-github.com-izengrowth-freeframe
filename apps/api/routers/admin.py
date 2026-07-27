@@ -4,9 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime, timezone
+from typing import Optional
 import uuid
 import json
 import os
+import tempfile
 
 from ..database import get_db
 from ..middleware.auth import get_current_user
@@ -15,9 +17,9 @@ from ..schemas.auth import UserResponse, UpdateUserRoleRequest
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-# ── Keep-alive state (file-backed, survives restarts without DB migration) ──────
+# ── Keep-alive state (file-backed in /tmp, survives restarts without DB migration) ──────
 
-_KEEP_ALIVE_FILE = os.path.join(os.path.dirname(__file__), "..", ".keep_alive_state.json")
+_KEEP_ALIVE_FILE = os.path.join(tempfile.gettempdir(), "freeframe_keep_alive_state.json")
 
 def _load_keep_alive() -> dict:
     try:
@@ -35,7 +37,7 @@ def _save_keep_alive(state: dict):
 
 class KeepAliveStatus(BaseModel):
     enabled: bool
-    last_ping: str | None = None
+    last_ping: Optional[str] = None
 
 class KeepAliveUpdate(BaseModel):
     enabled: bool
