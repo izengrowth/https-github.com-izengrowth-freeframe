@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { GuestCommentInput } from '@/components/review/guest-comment-input'
 import { FolderShareViewer } from '@/components/share/folder-share-viewer'
 import { ShareVideoPlayer } from '@/components/share/share-video-player'
 import { ShareCommentPanel } from '@/components/share/share-comment-panel'
@@ -57,6 +58,7 @@ interface ShareValidateResponse {
 interface GuestComment {
   id: string
   body: string
+  parent_id?: string | null
   guest_author?: { id: string; name: string; email: string } | null
   author?: { id: string; name: string } | null
   guest_name?: string | null

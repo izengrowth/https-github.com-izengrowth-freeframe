@@ -381,8 +381,8 @@ function MainCommentInput({ token, identity, currentTime, onIdentified, onChange
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           body: trimmed,
-          guest_email: identity.email,
-          guest_name: identity.name,
+          guest_email: identity!.email,
+          guest_name: identity!.name,
           timecode_start: currentTime != null && currentTime > 0 ? Math.floor(currentTime) : null,
         }),
       })
