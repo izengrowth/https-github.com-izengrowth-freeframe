@@ -46,13 +46,18 @@ def get_s3_client():
             region_name=settings.s3_region,
         )
 
+def _has_custom_endpoint() -> bool:
+    """True when using a non-AWS S3-compatible endpoint (e.g. Cloudflare R2, MinIO)."""
+    return bool(settings.s3_endpoint and "amazonaws.com" not in settings.s3_endpoint)
+
+
 def _get_presign_client():
     """
-    Client for generating presigned URLs. Uses s3_public_endpoint if set,
-    so presigned URLs are accessible from the browser (e.g. localhost:9000
-    instead of minio:9000 in Docker).
+    Client for generating presigned URLs. Uses s3_public_endpoint if set.
+    Always passes endpoint_url for R2/MinIO so presigned URLs point to the
+    correct host (not the default AWS S3 endpoint).
     """
-    endpoint = settings.s3_public_endpoint or (None if _is_aws_s3() else settings.s3_endpoint)
+    endpoint = settings.s3_public_endpoint or (settings.s3_endpoint if _has_custom_endpoint() else None)
     kwargs = {
         "aws_access_key_id": settings.s3_access_key,
         "aws_secret_access_key": settings.s3_secret_key,
@@ -63,72 +68,61 @@ def _get_presign_client():
     return boto3.client("s3", **kwargs)
 
 def ensure_bucket_exists():
-    """Create the S3 bucket if it does not exist. Called on app startup."""
-    s3 = get_s3_client()
+    """Verify S3/R2 bucket is accessible. Called on app startup.
+    Failures are logged but never crash the app — upload operations
+    will surface the real error when they actually run.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
     try:
-        s3.head_bucket(Bucket=settings.s3_bucket)
-    except ClientError as e:
-        error_code = e.response["Error"]["Code"]
-        if error_code in ("404", "NoSuchBucket"):
-            # For AWS S3 in non-us-east-1 regions, need LocationConstraint
-            if _is_aws_s3() and settings.s3_region != "us-east-1":
-                s3.create_bucket(
+        s3 = get_s3_client()
+        try:
+            s3.head_bucket(Bucket=settings.s3_bucket)
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            if error_code in ("404", "NoSuchBucket"):
+                # Bucket not found — try to create it
+                try:
+                    if not _has_custom_endpoint() and settings.s3_region != "us-east-1":
+                        s3.create_bucket(
+                            Bucket=settings.s3_bucket,
+                            CreateBucketConfiguration={"LocationConstraint": settings.s3_region}
+                        )
+                    else:
+                        s3.create_bucket(Bucket=settings.s3_bucket)
+                    logger.info(f"Created S3 bucket: {settings.s3_bucket}")
+                except ClientError as create_err:
+                    logger.warning(f"Could not create bucket: {create_err}")
+            elif error_code == "403":
+                # 403 on R2/MinIO = bucket exists, credentials valid, no list permission
+                # This is fine — uploads will still work
+                logger.info(f"Bucket {settings.s3_bucket} exists (403 on head = access OK)")
+            else:
+                logger.warning(f"Unexpected bucket check error ({error_code}): {e}")
+
+        # Set CORS for browser-based uploads (presigned PUT) — R2 and MinIO support this
+        if _has_custom_endpoint():
+            try:
+                s3.put_bucket_cors(
                     Bucket=settings.s3_bucket,
-                    CreateBucketConfiguration={"LocationConstraint": settings.s3_region}
+                    CORSConfiguration={
+                        "CORSRules": [
+                            {
+                                "AllowedHeaders": ["*"],
+                                "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+                                "AllowedOrigins": [settings.frontend_url, "http://localhost:3000", "https://*.onrender.com"],
+                                "ExposeHeaders": ["ETag", "Content-Length", "x-amz-request-id"],
+                                "MaxAgeSeconds": 3600,
+                            }
+                        ]
+                    },
                 )
-            else:
-                s3.create_bucket(Bucket=settings.s3_bucket)
-        elif error_code == "403":
-            # Bucket exists but we don't have access, or using wrong credentials
-            # For AWS S3, bucket likely already exists - skip creation
-            if _is_aws_s3():
-                pass  # Assume bucket exists, will fail on actual operations if not
-            else:
-                raise
-        else:
-            raise
+            except ClientError as cors_err:
+                logger.warning(f"Could not set bucket CORS: {cors_err}")
 
-    # Set CORS for browser-based uploads (presigned PUT)
-    if not _is_aws_s3():
-        try:
-            s3.put_bucket_cors(
-                Bucket=settings.s3_bucket,
-                CORSConfiguration={
-                    "CORSRules": [
-                        {
-                            "AllowedHeaders": ["*"],
-                            "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-                            "AllowedOrigins": [settings.frontend_url, "http://localhost:3000"],
-                            "ExposeHeaders": ["ETag", "Content-Length", "x-amz-request-id"],
-                            "MaxAgeSeconds": 3600,
-                        }
-                    ]
-                },
-            )
-        except ClientError:
-            pass  # CORS config failed, non-critical
-
-        # Set public-read policy on processed/ prefix so HLS sub-playlists
-        # and .ts segments can be fetched without presigned URLs
-        try:
-            policy = {
-                "Version": "2012-10-17",
-                "Statement": [
-                    {
-                        "Sid": "PublicReadProcessed",
-                        "Effect": "Allow",
-                        "Principal": "*",
-                        "Action": "s3:GetObject",
-                        "Resource": f"arn:aws:s3:::{settings.s3_bucket}/processed/*",
-                    }
-                ],
-            }
-            s3.put_bucket_policy(
-                Bucket=settings.s3_bucket,
-                Policy=json.dumps(policy),
-            )
-        except ClientError:
-            pass  # Policy config failed, non-critical
+    except Exception as e:
+        # Never crash the app on startup due to storage issues
+        logger.error(f"Storage startup check failed (uploads may not work): {e}")
 
 
 def get_content_type(key: str) -> tuple[str, str]:

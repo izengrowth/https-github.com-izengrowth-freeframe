@@ -63,7 +63,13 @@ def send_magic_code(body: SendMagicCodeRequest, db: Session = Depends(get_db)):
     
     # Generate and store magic code in Redis
     code = generate_magic_code()
-    store_magic_code(body.email, code)
+    try:
+        store_magic_code(body.email, code)
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Magic code login is temporarily unavailable. Please use password login instead.",
+        )
 
     # Queue email via Celery (async)
     try:
