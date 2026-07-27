@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     )
 
     database_url: str
-    redis_url: str
+    redis_url: str = "redis://localhost:6379/0"
     s3_storage: str = "minio"  # "s3" for AWS S3, "minio" for local MinIO
     s3_bucket: str = "freeframe"
     s3_endpoint: str = "http://minio:9000"
