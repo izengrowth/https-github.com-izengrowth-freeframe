@@ -23,23 +23,24 @@ def _is_aws_s3() -> bool:
 
 def get_s3_client():
     """
-    Create S3 client. Auto-detects AWS vs MinIO:
-    - If access_key starts with 'AKIA' -> use AWS S3 (no endpoint_url)
-    - Otherwise -> use custom endpoint (MinIO or S3-compatible)
+    Create S3 client. Uses endpoint_url if S3_ENDPOINT is set (covers
+    Cloudflare R2, MinIO, and other S3-compatible providers). Falls back
+    to real AWS S3 only when no custom endpoint is configured.
     """
-    if _is_aws_s3():
-        # Real AWS S3 - don't pass endpoint_url
+    has_custom_endpoint = bool(settings.s3_endpoint and "amazonaws.com" not in settings.s3_endpoint)
+    if has_custom_endpoint:
+        # Cloudflare R2, MinIO, or other S3-compatible storage
         return boto3.client(
             "s3",
+            endpoint_url=settings.s3_endpoint,
             aws_access_key_id=settings.s3_access_key,
             aws_secret_access_key=settings.s3_secret_key,
             region_name=settings.s3_region,
         )
     else:
-        # MinIO or S3-compatible storage
+        # Real AWS S3
         return boto3.client(
             "s3",
-            endpoint_url=settings.s3_endpoint,
             aws_access_key_id=settings.s3_access_key,
             aws_secret_access_key=settings.s3_secret_key,
             region_name=settings.s3_region,
