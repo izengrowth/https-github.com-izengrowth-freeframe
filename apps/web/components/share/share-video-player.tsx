@@ -179,13 +179,30 @@ function ShareProgressBar({ currentTime, duration, comments, focusedCommentId, o
     onSeek(getTimeAt(e.clientX))
   }, [getTimeAt, onSeek])
 
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length > 0) {
+      setIsDragging(true)
+      onSeek(getTimeAt(e.touches[0].clientX))
+    }
+  }, [getTimeAt, onSeek])
+
   useEffect(() => {
     if (!isDragging) return
     const onMove = (e: MouseEvent) => onSeek(getTimeAt(e.clientX))
     const onUp = (e: MouseEvent) => { setIsDragging(false); setHoverTime(null); onSeek(getTimeAt(e.clientX)) }
+    const onTouchMove = (e: TouchEvent) => { if (e.touches.length > 0) onSeek(getTimeAt(e.touches[0].clientX)) }
+    const onTouchEnd = () => { setIsDragging(false); setHoverTime(null) }
+
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    window.addEventListener('touchmove', onTouchMove)
+    window.addEventListener('touchend', onTouchEnd)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend', onTouchEnd)
+    }
   }, [isDragging, getTimeAt, onSeek])
 
   const pointMarkers = comments.filter(c => c.timecode_start != null && c.timecode_end == null && !c.resolved)
@@ -193,14 +210,15 @@ function ShareProgressBar({ currentTime, duration, comments, focusedCommentId, o
   const playPct = pct(currentTime)
 
   return (
-    <div className="relative flex flex-col w-full group/progress py-1">
+    <div className="relative flex flex-col w-full group/progress py-2 touch-none">
       {/* Track */}
       <div
         ref={trackRef}
-        className="relative w-full h-1 group-hover/progress:h-1.5 transition-all duration-150 cursor-pointer bg-white/15 rounded-full"
+        className="relative w-full h-1.5 group-hover/progress:h-2 transition-all duration-150 cursor-pointer bg-white/20 rounded-full"
         onMouseMove={handleMouseMove}
         onMouseLeave={() => { if (!isDragging) { setHoverTime(null) } }}
         onMouseDown={handleMouseDown}
+        onTouchStart={handleTouchStart}
       >
         {/* Range comment spans */}
         {rangeMarkers.map(c => {
