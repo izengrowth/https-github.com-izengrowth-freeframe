@@ -80,14 +80,41 @@ function AssetTypeIcon({ type, className }: { type: string; className?: string }
 
 function CopyButton({ text, label }: { text: string; label?: string }) {
   const [copied, setCopied] = React.useState(false)
+  const [failed, setFailed] = React.useState(false)
 
   async function handleCopy() {
+    // Try modern clipboard API first
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+        return
+      } catch {
+        // Fall through to legacy method
+      }
+    }
+    // Legacy fallback: create a temp textarea and copy from it
     try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      const el = document.createElement('textarea')
+      el.value = text
+      el.style.position = 'fixed'
+      el.style.top = '-9999px'
+      el.style.left = '-9999px'
+      document.body.appendChild(el)
+      el.focus()
+      el.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(el)
+      if (ok) {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } else {
+        throw new Error('execCommand failed')
+      }
     } catch {
-      // Fallback
+      setFailed(true)
+      setTimeout(() => setFailed(false), 3000)
     }
   }
 
@@ -97,6 +124,11 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
         <>
           <Check className="h-3.5 w-3.5 text-status-success" />
           {label ? 'Copied!' : ''}
+        </>
+      ) : failed ? (
+        <>
+          <Copy className="h-3.5 w-3.5 text-red-400" />
+          {label ? 'Failed — copy manually' : ''}
         </>
       ) : (
         <>
