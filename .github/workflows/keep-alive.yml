@@ -2,8 +2,8 @@ name: Keep Render Awake
 
 on:
   schedule:
-    # Ping every 9 minutes (GitHub Actions min interval is 5 min)
-    - cron: '*/9 * * * *'
+    # Run every 5 minutes (minimum allowed by GitHub Actions)
+    - cron: '*/5 * * * *'
   workflow_dispatch: # Manual trigger from GitHub Actions tab
 
 jobs:
@@ -13,18 +13,23 @@ jobs:
       - name: Check keep-alive status
         id: check
         run: |
-          # This call itself keeps the API awake — and tells us if we should do more
-          RESPONSE=$(curl -s --max-time 30 https://freeframe-api.onrender.com/admin/keep-alive/status || echo '{"enabled":true}')
+          # Allow up to 90s for cold start wakeups
+          RESPONSE=$(curl -s --max-time 90 --connect-timeout 60 https://freeframe-api.onrender.com/admin/keep-alive/status || echo '{"enabled":true}')
           echo "Response: $RESPONSE"
           ENABLED=$(echo $RESPONSE | python3 -c "import json,sys; d=json.load(sys.stdin); print(str(d.get('enabled', True)).lower())" 2>/dev/null || echo "true")
           echo "enabled=$ENABLED" >> $GITHUB_OUTPUT
           echo "Keep-alive enabled: $ENABLED"
 
-      - name: Ping frontend (keep alive)
+      - name: Ping backend and frontend (keep alive)
         if: steps.check.outputs.enabled == 'true'
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://review.izengrowth.space || echo "000")
-          echo "Frontend status: $STATUS"
+          echo "Pinging Backend..."
+          API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 --connect-timeout 60 https://freeframe-api.onrender.com/health || echo "000")
+          echo "Backend status: $API_STATUS"
+
+          echo "Pinging Frontend..."
+          WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 --connect-timeout 60 https://review.izengrowth.space || echo "000")
+          echo "Frontend status: $WEB_STATUS"
 
       - name: Skip (keep-alive is disabled)
         if: steps.check.outputs.enabled != 'true'
