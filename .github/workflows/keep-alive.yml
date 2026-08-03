@@ -2,8 +2,8 @@ name: Keep Render Awake
 
 on:
   schedule:
-    # Run every 5 minutes (minimum allowed by GitHub Actions)
-    - cron: '*/5 * * * *'
+    # Trigger job every 10 minutes
+    - cron: '*/10 * * * *'
   workflow_dispatch: # Manual trigger from GitHub Actions tab
 
 jobs:
@@ -13,23 +13,34 @@ jobs:
       - name: Check keep-alive status
         id: check
         run: |
-          # Allow up to 90s for cold start wakeups
           RESPONSE=$(curl -s --max-time 90 --connect-timeout 60 https://freeframe-api.onrender.com/admin/keep-alive/status || echo '{"enabled":true}')
           echo "Response: $RESPONSE"
           ENABLED=$(echo $RESPONSE | python3 -c "import json,sys; d=json.load(sys.stdin); print(str(d.get('enabled', True)).lower())" 2>/dev/null || echo "true")
           echo "enabled=$ENABLED" >> $GITHUB_OUTPUT
           echo "Keep-alive enabled: $ENABLED"
 
-      - name: Ping backend and frontend (keep alive)
+      - name: Multi-ping loop (keeps Render awake across queue delays)
         if: steps.check.outputs.enabled == 'true'
         run: |
-          echo "Pinging Backend..."
-          API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 --connect-timeout 60 https://freeframe-api.onrender.com/health || echo "000")
-          echo "Backend status: $API_STATUS"
+          # Runs a 6-minute active loop sending pings every 2 minutes.
+          # Even if GitHub delays the next cron run, this job keeps sending pings for 6 minutes!
+          for i in 1 2 3 4; do
+            echo "--- Ping Iteration $i at $(date) ---"
+            
+            echo "Pinging Backend..."
+            API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 --connect-timeout 60 https://freeframe-api.onrender.com/health || echo "000")
+            echo "Backend status: $API_STATUS"
 
-          echo "Pinging Frontend..."
-          WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 --connect-timeout 60 https://review.izengrowth.space || echo "000")
-          echo "Frontend status: $WEB_STATUS"
+            echo "Pinging Frontend..."
+            WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 --connect-timeout 60 https://review.izengrowth.space || echo "000")
+            echo "Frontend status: $WEB_STATUS"
+
+            if [ $i -lt 4 ]; then
+              echo "Waiting 120 seconds before next ping..."
+              sleep 120
+            fi
+          done
+          echo "Multi-ping loop completed successfully."
 
       - name: Skip (keep-alive is disabled)
         if: steps.check.outputs.enabled != 'true'
